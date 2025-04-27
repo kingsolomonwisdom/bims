@@ -1,43 +1,201 @@
 <?php
 /**
- * Database Connection File
+ * Database Connection Class
+ * 
+ * This file provides a functional approach to database connection management.
+ * It uses dependency injection, immutability, and advanced error handling.
  */
 
-// Database credentials
-$server = "localhost";
-$username = "root";  // default XAMPP username
-$password = "";      // default XAMPP password (blank)
-$database = "bbims";  // your database name
-
-// First connect without specifying a database
-$con = new mysqli($server, $username, $password);
-
-// Check connection
-if ($con->connect_error) {
-    die("Connection failed: " . $con->connect_error);
+// Custom exception for database errors
+class DatabaseException extends Exception {
+    public function __construct(string $message, int $code = 0, Throwable $previous = null) {
+        parent::__construct('Database Error: ' . $message, $code, $previous);
+    }
 }
 
-// Create the database if it doesn't exist
-$sql = "CREATE DATABASE IF NOT EXISTS $database";
-if ($con->query($sql) !== TRUE) {
-    die("Error creating database: " . $con->error);
+/**
+ * Database configuration for different environments
+ * This uses a functional approach with immutable configurations
+ */
+function getDbConfig(string $environment = 'development'): array {
+    $configs = [
+        'development' => [
+            'server' => 'localhost',
+            'username' => 'root',
+            'password' => '',
+            'database' => 'bbims',
+            'charset' => 'utf8mb4'
+        ],
+        'production' => [
+            'server' => 'localhost', // Change in production
+            'username' => 'bbims_user', // Change in production
+            'password' => 'secure_password', // Change in production
+            'database' => 'bbims',
+            'charset' => 'utf8mb4'
+        ],
+        'testing' => [
+            'server' => 'localhost',
+            'username' => 'root',
+            'password' => '',
+            'database' => 'bbims_test',
+            'charset' => 'utf8mb4'
+        ]
+    ];
+    
+    // Return a copy of the config to ensure immutability
+    return isset($configs[$environment]) ? $configs[$environment] : $configs['development'];
 }
 
-// Close the initial connection
-$con->close();
-
-// Connect to the database
-$con = new mysqli($server, $username, $password, $database);
-
-// Check connection again
-if ($con->connect_error) {
-    die("Connection failed: " . $con->connect_error);
+/**
+ * Create a database connection
+ * 
+ * @param array $config Database configuration
+ * @return mysqli Database connection
+ * @throws DatabaseException
+ */
+function createConnection(array $config): mysqli {
+    try {
+        // Create connection without database first
+        $conn = new mysqli($config['server'], $config['username'], $config['password']);
+        
+        // Check connection
+        if ($conn->connect_error) {
+            throw new DatabaseException("Connection failed: " . $conn->connect_error);
+        }
+        
+        // Create the database if it doesn't exist
+        $conn->query("CREATE DATABASE IF NOT EXISTS {$config['database']}");
+        
+        // Close the initial connection
+        $conn->close();
+        
+        // Connect to the database
+        $conn = new mysqli(
+            $config['server'], 
+            $config['username'], 
+            $config['password'], 
+            $config['database']
+        );
+        
+        // Set character set
+        if (!$conn->set_charset($config['charset'])) {
+            throw new DatabaseException("Error loading character set {$config['charset']}: " . $conn->error);
+        }
+        
+        return $conn;
+    } catch (Exception $e) {
+        throw new DatabaseException($e->getMessage(), $e->getCode(), $e);
+    }
 }
 
-// Set character set
-if (!$con->set_charset("utf8")) {
-    printf("Error loading character set utf8: %s\n", $con->error);
-    exit();
+/**
+ * Execute a database query safely and functionally
+ * 
+ * @param mysqli $connection Database connection
+ * @param string $query SQL query
+ * @param array $params Query parameters
+ * @return mixed Query result
+ * @throws DatabaseException
+ */
+function executeQuery(mysqli $connection, string $query, array $params = []): mixed {
+    try {
+        $stmt = $connection->prepare($query);
+        
+        if (!$stmt) {
+            throw new DatabaseException("Prepare failed: " . $connection->error);
+        }
+        
+        if (!empty($params)) {
+            // Build types string
+            $types = '';
+            foreach ($params as $param) {
+                if (is_int($param)) {
+                    $types .= 'i'; // integer
+                } elseif (is_float($param)) {
+                    $types .= 'd'; // double
+                } elseif (is_string($param)) {
+                    $types .= 's'; // string
+                } else {
+                    $types .= 'b'; // blob
+                }
+            }
+            
+            // Bind parameters
+            $stmt->bind_param($types, ...$params);
+        }
+        
+        // Execute the statement
+        if (!$stmt->execute()) {
+            throw new DatabaseException("Execute failed: " . $stmt->error);
+        }
+        
+        // Get the result
+        $result = $stmt->get_result();
+        
+        // If it's a SELECT query, fetch all results
+        if ($result) {
+            $data = [];
+            while ($row = $result->fetch_assoc()) {
+                $data[] = $row;
+            }
+            $stmt->close();
+            return $data;
+        }
+        
+        // For INSERT, UPDATE, DELETE queries
+        $affected = $stmt->affected_rows;
+        $insertId = $stmt->insert_id;
+        $stmt->close();
+        
+        return [
+            'affected_rows' => $affected,
+            'insert_id' => $insertId
+        ];
+    } catch (Exception $e) {
+        throw new DatabaseException($e->getMessage(), $e->getCode(), $e);
+    }
+}
+
+/**
+ * Functional wrapper for transactions
+ * 
+ * @param mysqli $connection Database connection
+ * @param callable $operation Function that performs the database operations
+ * @return mixed Result of the operation
+ * @throws DatabaseException
+ */
+function transaction(mysqli $connection, callable $operation): mixed {
+    try {
+        $connection->begin_transaction();
+        $result = $operation($connection);
+        $connection->commit();
+        return $result;
+    } catch (Exception $e) {
+        $connection->rollback();
+        throw new DatabaseException("Transaction failed: " . $e->getMessage(), $e->getCode(), $e);
+    }
+}
+
+/**
+ * Close a database connection safely
+ * 
+ * @param mysqli $connection Database connection
+ * @return bool Whether the connection was closed successfully
+ */
+function closeConnection(mysqli $connection): bool {
+    return $connection->close();
+}
+
+// Create a database connection for global use
+try {
+    $config = getDbConfig();
+    $con = createConnection($config);
+} catch (DatabaseException $e) {
+    // Log the error
+    error_log($e->getMessage());
+    
+    // Display user-friendly error message
+    die("We're experiencing technical difficulties. Please try again later.");
 }
 
 // Create users table if it doesn't exist
