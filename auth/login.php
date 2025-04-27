@@ -40,7 +40,7 @@ if(isset($_POST['login'])){
 
             // Set success message and redirect
             $_SESSION['message'] = "Welcome back, " . htmlspecialchars($user['username']) . "!";
-            header("Location: ../Homepage/homepage.php");
+            header("Location: ../dashboard/dashboard.php");
             exit();
         }
     }
