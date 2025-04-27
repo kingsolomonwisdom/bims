@@ -509,7 +509,7 @@ $taxRate = 0.10; // 10%
                 </a>
             </li>
             <li>
-                <a href="#">
+                <a href="../products/products.php">
                     <i class="fas fa-box"></i>
                     <span>Products</span>
                 </a>
@@ -521,13 +521,13 @@ $taxRate = 0.10; // 10%
                 </a>
             </li>
             <li>
-                <a href="#" class="active">
+                <a href="../pos/pos.php" class="active">
                     <i class="fas fa-shopping-cart"></i>
                     <span>POS</span>
                 </a>
             </li>
             <li>
-                <a href="#">
+            <a href="../ai-insights/ai-insights.php">
                     <i class="fas fa-brain"></i>
                     <span>AI Insights</span>
                 </a>

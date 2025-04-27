@@ -388,25 +388,25 @@ $suppliers = [
                 </a>
             </li>
             <li>
-                <a href="#">
+                <a href="../products/products.php">
                     <i class="fas fa-box"></i>
                     <span>Products</span>
                 </a>
             </li>
             <li>
-                <a href="#" class="active">
+                <a href="../suppliers/suppliers.php" class="active">
                     <i class="fas fa-truck"></i>
                     <span>Suppliers</span>
                 </a>
             </li>
             <li>
-                <a href="#">
+                <a href="../pos/pos.php">
                     <i class="fas fa-shopping-cart"></i>
                     <span>POS</span>
                 </a>
             </li>
             <li>
-                <a href="#">
+                <a href="../ai-insights/ai-insights.php">
                     <i class="fas fa-brain"></i>
                     <span>AI Insights</span>
                 </a>
