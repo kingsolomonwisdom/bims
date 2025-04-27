@@ -377,7 +377,7 @@ $category_data = [45, 38, 32, 28, 25, 20];
             </li>
             <li>
                 <a href="../products/products.php">
-                    <i class="fas fa-box"></i>
+                    <i class="fas fa-boxes"></i>
                     <span>Products</span>
                 </a>
             </li>
@@ -390,12 +390,12 @@ $category_data = [45, 38, 32, 28, 25, 20];
             <li>
                 <a href="../pos/pos.php">
                     <i class="fas fa-shopping-cart"></i>
-                    <span>POS</span>
+                    <span>Point of Sale</span>
                 </a>
             </li>
             <li>
-                <a href="../ai-insights/ai-insights.php">
-                    <i class="fas fa-brain"></i>
+                <a href="../ai-insights/insights.php">
+                    <i class="fas fa-lightbulb"></i>
                     <span>AI Insights</span>
                 </a>
             </li>

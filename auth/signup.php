@@ -59,24 +59,21 @@ if(isset($_POST['signup'])){
         echo "<script>alert('Email already registered!');</script>";
     } else {
         // Handle profile photo upload
-        $profile_photo_name = null;
-        if(isset($_FILES['profile_photo']) && $_FILES['profile_photo']['error'] === UPLOAD_ERR_OK) {
+        $profile_photo_name = "";
+        if (isset($_FILES['profile_photo']) && $_FILES['profile_photo']['size'] > 0) {
             $allowed_types = ['image/jpeg', 'image/png', 'image/gif'];
-            $file_type = $_FILES['profile_photo']['type'];
-            
-            if(in_array($file_type, $allowed_types)) {
-                $profile_photo_name = time() . '_' . basename($_FILES['profile_photo']['name']);
-                $target_path = "../User Profiles/" . $profile_photo_name;
-                
-                if(move_uploaded_file($_FILES['profile_photo']['tmp_name'], $target_path)) {
-                    // File uploaded successfully
-                } else {
-                    echo "<script>alert('Error uploading profile photo!');</script>";
-                    exit();
-                }
+            if (!in_array($_FILES['profile_photo']['type'], $allowed_types)) {
+                $error = "Invalid file type. Only JPG, PNG, and GIF are allowed.";
             } else {
-                echo "<script>alert('Invalid file type! Please upload a JPEG, PNG, or GIF file.');</script>";
-                exit();
+                $profile_photo_name = time() . '_' . basename($_FILES['profile_photo']['name']);
+                $profile_dir = dirname(__DIR__) . "/User Profiles";
+                if (!file_exists($profile_dir)) {
+                    mkdir($profile_dir, 0777, true);
+                }
+                $target_path = $profile_dir . "/" . $profile_photo_name;
+                if (!move_uploaded_file($_FILES['profile_photo']['tmp_name'], $target_path)) {
+                    $error = "Failed to upload profile photo.";
+                }
             }
         }
 

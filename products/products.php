@@ -13,59 +13,232 @@ require_once("../connection.php");
 $user_id = $_SESSION['user_id'] ?? 1;
 $username = $_SESSION['username'] ?? 'User';
 
-// Sample products data (in a real application, this would come from the database)
-$products = [
-    [
-        'id' => 1, 
-        'sku' => 'MAG-MLK-200ML', 
-        'name' => 'Full Cream Milk', 
-        'brand' => 'Magnolia', 
-        'category' => 'Dairy', 
-        'stock' => '20 pcs.', 
-        'expiry' => '3/28/2025', 
-        'description' => 'Recombined Full Cream Milk. UHT-Processed long life. No need to go through traffic just to get your favorite premium food and beverage products!'
-    ],
-    [
-        'id' => 2, 
-        'sku' => 'CHO-BAR-100G', 
-        'name' => 'Chocolate Bar', 
-        'brand' => 'CacaoDelight', 
-        'category' => 'Confectionery', 
-        'stock' => '45 pcs.', 
-        'expiry' => '5/15/2024', 
-        'description' => 'Premium dark chocolate bar made with 70% cocoa. Rich flavor with notes of fruit and a smooth finish.'
-    ],
-    [
-        'id' => 3, 
-        'sku' => 'COF-ARAB-500G', 
-        'name' => 'Arabica Coffee', 
-        'brand' => 'MountainBean', 
-        'category' => 'Beverages', 
-        'stock' => '32 pcs.', 
-        'expiry' => '9/10/2024', 
-        'description' => 'Premium roasted arabica coffee beans. Single-origin from highland plantations for a rich, aromatic brew.'
-    ],
-    [
-        'id' => 4, 
-        'sku' => 'RICE-JAS-5KG', 
-        'name' => 'Jasmine Rice', 
-        'brand' => 'GoldenHarvest', 
-        'category' => 'Grains', 
-        'stock' => '15 pcs.', 
-        'expiry' => '12/20/2025', 
-        'description' => 'Premium jasmine rice with fragrant aroma. Perfect for everyday meals and special occasions.'
-    ],
-    [
-        'id' => 5, 
-        'sku' => 'OIL-OLIVE-750ML', 
-        'name' => 'Extra Virgin Olive Oil', 
-        'brand' => 'MediterraGold', 
-        'category' => 'Oils', 
-        'stock' => '28 pcs.', 
-        'expiry' => '6/15/2024', 
-        'description' => 'Cold-pressed extra virgin olive oil. High quality with low acidity and rich flavor for culinary excellence.'
-    ]
-];
+/**
+ * Pure function to get products with their categories and suppliers
+ * 
+ * @param mysqli $connection Database connection
+ * @return array List of products with their details
+ */
+function getProducts(mysqli $connection): array {
+    try {
+        $query = "
+            SELECT 
+                p.*, 
+                c.name as category_name,
+                s.company_name as supplier_name
+            FROM 
+                products p
+            LEFT JOIN 
+                categories c ON p.category_id = c.category_id
+            LEFT JOIN 
+                suppliers s ON p.supplier_id = s.supplier_id
+            WHERE 
+                p.is_active = 1
+            ORDER BY 
+                p.name ASC
+        ";
+        
+        return executeQuery($connection, $query);
+    } catch (DatabaseException $e) {
+        error_log($e->getMessage());
+        return [];
+    }
+}
+
+/**
+ * Pure function to get all categories
+ * 
+ * @param mysqli $connection Database connection
+ * @return array List of categories
+ */
+function getCategories(mysqli $connection): array {
+    try {
+        $query = "SELECT * FROM categories ORDER BY name ASC";
+        return executeQuery($connection, $query);
+    } catch (DatabaseException $e) {
+        error_log($e->getMessage());
+        return [];
+    }
+}
+
+/**
+ * Pure function to get all suppliers
+ * 
+ * @param mysqli $connection Database connection
+ * @return array List of suppliers
+ */
+function getSuppliers(mysqli $connection): array {
+    try {
+        $query = "SELECT * FROM suppliers WHERE status = 'active' ORDER BY company_name ASC";
+        return executeQuery($connection, $query);
+    } catch (DatabaseException $e) {
+        error_log($e->getMessage());
+        return [];
+    }
+}
+
+/**
+ * Add a new product
+ * 
+ * @param mysqli $connection Database connection
+ * @param array $productData Product data to insert
+ * @return int|bool The inserted product ID or false on failure
+ */
+function addProduct(mysqli $connection, array $productData): int|bool {
+    try {
+        $query = "
+            INSERT INTO products (
+                sku, name, description, brand, category_id, supplier_id,
+                purchase_price, selling_price, discount_price, tax_rate,
+                stock_quantity, reorder_level, expiry_date, image_url
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ";
+        
+        $params = [
+            $productData['sku'],
+            $productData['name'],
+            $productData['description'] ?? '',
+            $productData['brand'] ?? '',
+            $productData['category_id'] ?? null,
+            $productData['supplier_id'] ?? null,
+            $productData['purchase_price'],
+            $productData['selling_price'],
+            $productData['discount_price'] ?? null,
+            $productData['tax_rate'] ?? 0,
+            $productData['stock_quantity'] ?? 0,
+            $productData['reorder_level'] ?? 5,
+            $productData['expiry_date'] ?? null,
+            $productData['image_url'] ?? null
+        ];
+        
+        $result = executeQuery($connection, $query, $params);
+        return $result['insert_id'] ?? false;
+    } catch (DatabaseException $e) {
+        error_log($e->getMessage());
+        return false;
+    }
+}
+
+/**
+ * Update an existing product
+ * 
+ * @param mysqli $connection Database connection
+ * @param int $productId Product ID to update
+ * @param array $productData Updated product data
+ * @return bool Whether the update was successful
+ */
+function updateProduct(mysqli $connection, int $productId, array $productData): bool {
+    try {
+        $query = "
+            UPDATE products SET
+                sku = ?,
+                name = ?,
+                description = ?,
+                brand = ?,
+                category_id = ?,
+                supplier_id = ?,
+                purchase_price = ?,
+                selling_price = ?,
+                discount_price = ?,
+                tax_rate = ?,
+                stock_quantity = ?,
+                reorder_level = ?,
+                expiry_date = ?,
+                image_url = ?,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE product_id = ?
+        ";
+        
+        $params = [
+            $productData['sku'],
+            $productData['name'],
+            $productData['description'] ?? '',
+            $productData['brand'] ?? '',
+            $productData['category_id'] ?? null,
+            $productData['supplier_id'] ?? null,
+            $productData['purchase_price'],
+            $productData['selling_price'],
+            $productData['discount_price'] ?? null,
+            $productData['tax_rate'] ?? 0,
+            $productData['stock_quantity'] ?? 0,
+            $productData['reorder_level'] ?? 5,
+            $productData['expiry_date'] ?? null,
+            $productData['image_url'] ?? null,
+            $productId
+        ];
+        
+        $result = executeQuery($connection, $query, $params);
+        return ($result['affected_rows'] > 0);
+    } catch (DatabaseException $e) {
+        error_log($e->getMessage());
+        return false;
+    }
+}
+
+/**
+ * Delete a product (soft delete by setting is_active to 0)
+ * 
+ * @param mysqli $connection Database connection
+ * @param int $productId Product ID to delete
+ * @return bool Whether the deletion was successful
+ */
+function deleteProduct(mysqli $connection, int $productId): bool {
+    try {
+        $query = "UPDATE products SET is_active = 0 WHERE product_id = ?";
+        $result = executeQuery($connection, $query, [$productId]);
+        return ($result['affected_rows'] > 0);
+    } catch (DatabaseException $e) {
+        error_log($e->getMessage());
+        return false;
+    }
+}
+
+// Handle form submission for adding/editing/deleting products
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (isset($_POST['action'])) {
+        switch ($_POST['action']) {
+            case 'add':
+                if (addProduct($con, $_POST)) {
+                    $_SESSION['success_message'] = "Product added successfully!";
+                } else {
+                    $_SESSION['error_message'] = "Failed to add product.";
+                }
+                break;
+                
+            case 'edit':
+                if (isset($_POST['product_id']) && updateProduct($con, (int)$_POST['product_id'], $_POST)) {
+                    $_SESSION['success_message'] = "Product updated successfully!";
+                } else {
+                    $_SESSION['error_message'] = "Failed to update product.";
+                }
+                break;
+                
+            case 'delete':
+                if (isset($_POST['product_id']) && deleteProduct($con, (int)$_POST['product_id'])) {
+                    $_SESSION['success_message'] = "Product deleted successfully!";
+                } else {
+                    $_SESSION['error_message'] = "Failed to delete product.";
+                }
+                break;
+        }
+        
+        // Redirect to avoid form resubmission
+        header("Location: products.php");
+        exit();
+    }
+}
+
+// Fetch products, categories, and suppliers
+$products = getProducts($con);
+$categories = getCategories($con);
+$suppliers = getSuppliers($con);
+
+// Check for success and error messages
+$successMessage = $_SESSION['success_message'] ?? null;
+$errorMessage = $_SESSION['error_message'] ?? null;
+
+// Clear session messages
+unset($_SESSION['success_message'], $_SESSION['error_message']);
 ?>
 
 <!DOCTYPE html>
@@ -228,277 +401,142 @@ $products = [
             color: var(--text-dark);
         }
         
-        /* Products Section */
-        .products-container {
-            background-color: var(--secondary-bg);
+        /* Products Table */
+        .product-container {
+            background-color: #F5E7D1;
             border-radius: 8px;
             padding: 20px;
             margin-bottom: 20px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
         }
         
-        .products-title {
-            font-size: 28px;
-            font-weight: bold;
-            color: var(--text-dark);
-            text-align: center;
-            margin-bottom: 20px;
-            text-shadow: 1px 1px 2px rgba(255, 255, 255, 0.5);
-        }
-        
-        .products-actions {
+        .product-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
             margin-bottom: 20px;
         }
         
-        .btn-add-product {
+        .product-title {
+            font-size: 20px;
+            font-weight: bold;
+            color: var(--text-dark);
+            margin: 0;
+        }
+        
+        .add-product-btn {
             background-color: var(--highlight);
             color: white;
             border: none;
+            padding: 8px 15px;
             border-radius: 5px;
-            padding: 8px 20px;
-            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
             transition: all 0.3s;
             display: flex;
             align-items: center;
         }
         
-        .btn-add-product i {
+        .add-product-btn i {
             margin-right: 8px;
         }
         
-        .btn-add-product:hover {
-            background-color: #e67e22;
+        .add-product-btn:hover {
+            background-color: #e67e38;
             transform: translateY(-2px);
         }
         
-        .search-box {
-            position: relative;
-            flex: 1;
-            max-width: 600px;
-            margin: 0 20px;
-        }
-        
-        .search-input {
+        .product-table {
             width: 100%;
-            padding: 10px 15px 10px 40px;
-            border: 1px solid #ddd;
-            border-radius: 25px;
-            font-size: 16px;
-            background-color: white;
+            border-collapse: collapse;
         }
         
-        .search-icon {
-            position: absolute;
-            left: 15px;
-            top: 50%;
-            transform: translateY(-50%);
-            color: #777;
-        }
-        
-        .filter-actions {
-            display: flex;
-            gap: 10px;
-        }
-        
-        .btn-filter {
-            background-color: var(--highlight);
-            color: white;
-            border: none;
-            width: 40px;
-            height: 40px;
-            border-radius: 5px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: all 0.3s;
-        }
-        
-        .btn-filter:hover {
-            background-color: #e67e22;
-        }
-        
-        /* Products Table */
-        .products-table-container {
-            width: 100%;
-            overflow-x: auto;
-            margin-top: 20px;
-        }
-        
-        .products-table {
-            width: 100%;
-            border-collapse: separate;
-            border-spacing: 0;
-        }
-        
-        .products-table th {
+        .product-table th {
             background-color: var(--primary-bg);
             color: white;
             text-align: left;
-            padding: 15px;
-            position: sticky;
-            top: 0;
-            z-index: 1;
+            padding: 12px 15px;
+            font-weight: 500;
         }
         
-        .products-table tr {
-            transition: all 0.3s;
-        }
-        
-        .products-table tr:nth-child(even) {
-            background-color: rgba(255, 255, 255, 0.5);
-        }
-        
-        .products-table tr:hover {
-            background-color: rgba(247, 143, 64, 0.1);
-        }
-        
-        .products-table td {
-            padding: 15px;
+        .product-table td {
+            padding: 12px 15px;
             border-bottom: 1px solid #ddd;
-            vertical-align: middle;
         }
         
-        .description-cell {
-            max-width: 300px;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: normal;
+        .product-table tr:last-child td {
+            border-bottom: none;
         }
         
-        .action-cell {
+        .product-table tr:nth-child(even) {
+            background-color: rgba(0,0,0,0.02);
+        }
+        
+        .product-table tr:hover {
+            background-color: rgba(0,0,0,0.05);
+        }
+        
+        .action-btns {
             display: flex;
-            gap: 5px;
+            gap: 8px;
         }
         
         .btn-edit, .btn-delete {
-            width: 32px;
-            height: 32px;
+            padding: 6px 12px;
             border-radius: 4px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            border: none;
             cursor: pointer;
+            border: none;
             transition: all 0.3s;
         }
         
         .btn-edit {
-            background-color: #3498db;
-        }
-        
-        .btn-delete {
-            background-color: #e74c3c;
+            background-color: #4a90e2;
+            color: white;
         }
         
         .btn-edit:hover {
-            background-color: #2980b9;
+            background-color: #357abd;
+        }
+        
+        .btn-delete {
+            background-color: #e25c5c;
+            color: white;
         }
         
         .btn-delete:hover {
-            background-color: #c0392b;
-        }
-        
-        /* Modal */
-        .modal-content {
-            border-radius: 10px;
-            overflow: hidden;
-        }
-        
-        .modal-header {
-            background-color: var(--primary-bg);
-            color: white;
-            border-bottom: none;
-        }
-        
-        .modal-body {
-            padding: 20px;
-        }
-        
-        .modal-footer {
-            border-top: none;
-            padding: 15px 20px;
-        }
-        
-        .btn-primary {
-            background-color: var(--highlight);
-            border: none;
-            transition: all 0.3s;
-        }
-        
-        .btn-primary:hover {
-            background-color: #e67e22;
+            background-color: #c94444;
         }
         
         /* Responsive */
-        @media (max-width: 992px) {
+        @media (max-width: 991px) {
             .sidebar {
-                width: 70px;
-                transition: width 0.3s;
-            }
-            
-            .sidebar-brand {
-                justify-content: center;
-                padding: 10px;
-            }
-            
-            .sidebar-brand span, 
-            .sidebar-menu a span {
-                display: none;
-            }
-            
-            .sidebar-menu a {
-                justify-content: center;
-                padding: 15px;
-            }
-            
-            .sidebar-menu a i {
-                margin-right: 0;
+                width: 250px;
             }
             
             .main-content {
-                margin-left: 70px;
+                margin-left: 250px;
+            }
+        }
+        
+        @media (max-width: 767px) {
+            .sidebar {
+                left: -250px;
             }
             
-            .signout {
-                padding: 0;
-            }
-            
-            .signout a {
-                justify-content: center;
-            }
-            
-            .signout a i {
-                margin-right: 0;
-            }
-            
-            .products-actions {
-                flex-direction: column;
-                gap: 10px;
-                align-items: flex-start;
-            }
-            
-            .search-box {
-                width: 100%;
-                max-width: none;
-                margin: 10px 0;
-            }
-            
-            .filter-actions {
-                align-self: flex-end;
+            .main-content {
+                margin-left: 0;
             }
         }
     </style>
 </head>
 <body>
     <!-- Sidebar -->
-    <aside class="sidebar">
+    <div class="sidebar">
         <div class="sidebar-brand">
-            <i class="fas fa-briefcase briefcase-icon"></i>
-            <span>BUSINESS IMS</span>
+            <div class="briefcase-icon">
+                <i class="fas fa-briefcase"></i>
+            </div>
+            <span>Business IMS</span>
         </div>
         
         <ul class="sidebar-menu">
@@ -509,8 +547,8 @@ $products = [
                 </a>
             </li>
             <li>
-                <a href="../products/products.php" class="active">
-                    <i class="fas fa-box"></i>
+                <a href="products.php" class="active">
+                    <i class="fas fa-boxes"></i>
                     <span>Products</span>
                 </a>
             </li>
@@ -523,12 +561,12 @@ $products = [
             <li>
                 <a href="../pos/pos.php">
                     <i class="fas fa-shopping-cart"></i>
-                    <span>POS</span>
+                    <span>Point of Sale</span>
                 </a>
             </li>
             <li>
-            <a href="../ai-insights/ai-insights.php">
-                    <i class="fas fa-brain"></i>
+                <a href="../ai-insights/insights.php">
+                    <i class="fas fa-lightbulb"></i>
                     <span>AI Insights</span>
                 </a>
             </li>
@@ -540,92 +578,113 @@ $products = [
                 <span>Sign Out</span>
             </a>
         </div>
-    </aside>
+    </div>
     
     <!-- Main Content -->
-    <main class="main-content">
+    <div class="main-content">
         <!-- Header -->
         <div class="header">
-            <h1 class="page-title">Products</h1>
+            <h2 class="page-title">Products Management</h2>
+            
             <div class="user-info">
                 <div class="notification-icon">
                     <i class="fas fa-bell"></i>
                 </div>
+                
                 <div class="user-profile">
-                    <i class="fas fa-user"></i>
+                    <i class="fas fa-user-circle"></i>
                     <span class="ms-2"><?php echo htmlspecialchars($username); ?></span>
                 </div>
             </div>
         </div>
         
-        <!-- Products Management -->
-        <div class="products-container">
-            <h2 class="products-title">PRODUCTS</h2>
-            
-            <div class="products-actions">
-                <button class="btn-add-product" data-bs-toggle="modal" data-bs-target="#addProductModal">
-                    <i class="fas fa-plus"></i> ADD PRODUCT
+        <!-- Messages -->
+        <?php if ($successMessage): ?>
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            <?php echo htmlspecialchars($successMessage); ?>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+        <?php endif; ?>
+        
+        <?php if ($errorMessage): ?>
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            <?php echo htmlspecialchars($errorMessage); ?>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+        <?php endif; ?>
+        
+        <!-- Products List -->
+        <div class="product-container">
+            <div class="product-header">
+                <h3 class="product-title">Product List</h3>
+                
+                <button class="add-product-btn" data-bs-toggle="modal" data-bs-target="#addProductModal">
+                    <i class="fas fa-plus"></i> Add Product
                 </button>
-                
-                <div class="search-box">
-                    <i class="fas fa-search search-icon"></i>
-                    <input type="text" class="search-input" placeholder="Search" id="searchProducts">
-                </div>
-                
-                <div class="filter-actions">
-                    <button class="btn-filter" title="Sort Ascending">
-                        <i class="fas fa-sort-amount-up"></i>
-                    </button>
-                    <button class="btn-filter" title="Sort Descending">
-                        <i class="fas fa-sort-amount-down"></i>
-                    </button>
-                    <button class="btn-filter" title="Filter">
-                        <i class="fas fa-filter"></i>
-                    </button>
-                </div>
             </div>
             
-            <div class="products-table-container">
-                <table class="products-table">
+            <div class="table-responsive">
+                <table class="product-table">
                     <thead>
                         <tr>
-                            <th>Product ID</th>
                             <th>SKU</th>
-                            <th>Product Name</th>
+                            <th>Name</th>
                             <th>Brand</th>
                             <th>Category</th>
+                            <th>Price</th>
                             <th>Stock</th>
-                            <th>Expiry</th>
-                            <th>Description</th>
+                            <th>Status</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
-                    <tbody id="productsTableBody">
+                    <tbody>
                         <?php foreach ($products as $product): ?>
-                        <tr>
-                            <td><?php echo $product['id']; ?></td>
-                            <td><?php echo htmlspecialchars($product['sku']); ?></td>
-                            <td><?php echo htmlspecialchars($product['name']); ?></td>
-                            <td><?php echo htmlspecialchars($product['brand']); ?></td>
-                            <td><?php echo htmlspecialchars($product['category']); ?></td>
-                            <td><?php echo htmlspecialchars($product['stock']); ?></td>
-                            <td><?php echo htmlspecialchars($product['expiry']); ?></td>
-                            <td class="description-cell"><?php echo htmlspecialchars($product['description']); ?></td>
-                            <td class="action-cell">
-                                <button class="btn-edit" onclick="editProduct(<?php echo $product['id']; ?>)" title="Edit">
-                                    <i class="fas fa-edit"></i>
-                                </button>
-                                <button class="btn-delete" onclick="deleteProduct(<?php echo $product['id']; ?>)" title="Delete">
-                                    <i class="fas fa-trash"></i>
-                                </button>
-                            </td>
-                        </tr>
+                            <?php 
+                                // Determine stock status
+                                $stockStatus = 'In Stock';
+                                $statusClass = 'text-success';
+                                
+                                if ($product['stock_quantity'] <= 0) {
+                                    $stockStatus = 'Out of Stock';
+                                    $statusClass = 'text-danger';
+                                } elseif ($product['stock_quantity'] <= $product['reorder_level']) {
+                                    $stockStatus = 'Low Stock';
+                                    $statusClass = 'text-warning';
+                                }
+                            ?>
+                            <tr>
+                                <td><?php echo htmlspecialchars($product['sku']); ?></td>
+                                <td><?php echo htmlspecialchars($product['name']); ?></td>
+                                <td><?php echo htmlspecialchars($product['brand']); ?></td>
+                                <td><?php echo htmlspecialchars($product['category_name'] ?? 'Uncategorized'); ?></td>
+                                <td><?php echo number_format($product['selling_price'], 2); ?></td>
+                                <td><?php echo $product['stock_quantity']; ?></td>
+                                <td class="<?php echo $statusClass; ?>"><?php echo $stockStatus; ?></td>
+                                <td>
+                                    <div class="action-btns">
+                                        <button class="btn-edit" data-bs-toggle="modal" data-bs-target="#editProductModal" 
+                                                data-product-id="<?php echo $product['product_id']; ?>">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                        <button class="btn-delete" data-bs-toggle="modal" data-bs-target="#deleteProductModal"
+                                                data-product-id="<?php echo $product['product_id']; ?>"
+                                                data-product-name="<?php echo htmlspecialchars($product['name']); ?>">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
                         <?php endforeach; ?>
+                        <?php if (empty($products)): ?>
+                            <tr>
+                                <td colspan="8" class="text-center py-4">No products found.</td>
+                            </tr>
+                        <?php endif; ?>
                     </tbody>
                 </table>
             </div>
         </div>
-    </main>
+    </div>
     
     <!-- Add Product Modal -->
     <div class="modal fade" id="addProductModal" tabindex="-1" aria-labelledby="addProductModalLabel" aria-hidden="true">
@@ -636,122 +695,134 @@ $products = [
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-                    <form id="addProductForm" class="row g-3">
-                        <div class="col-md-6">
-                            <label for="productSKU" class="form-label">SKU</label>
-                            <input type="text" class="form-control" id="productSKU" required>
+                    <form action="products.php" method="POST" enctype="multipart/form-data">
+                        <input type="hidden" name="action" value="add">
+                        
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="sku" class="form-label">SKU</label>
+                                <input type="text" class="form-control" id="sku" name="sku" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="name" class="form-label">Product Name</label>
+                                <input type="text" class="form-control" id="name" name="name" required>
+                            </div>
                         </div>
-                        <div class="col-md-6">
-                            <label for="productName" class="form-label">Product Name</label>
-                            <input type="text" class="form-control" id="productName" required>
+                        
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="brand" class="form-label">Brand</label>
+                                <input type="text" class="form-control" id="brand" name="brand">
+                            </div>
+                            <div class="col-md-6">
+                                <label for="category_id" class="form-label">Category</label>
+                                <select class="form-select" id="category_id" name="category_id">
+                                    <option value="">Select Category</option>
+                                    <?php foreach ($categories as $category): ?>
+                                        <option value="<?php echo $category['category_id']; ?>">
+                                            <?php echo htmlspecialchars($category['name']); ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
                         </div>
-                        <div class="col-md-6">
-                            <label for="productBrand" class="form-label">Brand</label>
-                            <input type="text" class="form-control" id="productBrand" required>
+                        
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="supplier_id" class="form-label">Supplier</label>
+                                <select class="form-select" id="supplier_id" name="supplier_id">
+                                    <option value="">Select Supplier</option>
+                                    <?php foreach ($suppliers as $supplier): ?>
+                                        <option value="<?php echo $supplier['supplier_id']; ?>">
+                                            <?php echo htmlspecialchars($supplier['company_name']); ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="expiry_date" class="form-label">Expiry Date</label>
+                                <input type="date" class="form-control" id="expiry_date" name="expiry_date">
+                            </div>
                         </div>
-                        <div class="col-md-6">
-                            <label for="productCategory" class="form-label">Category</label>
-                            <select class="form-select" id="productCategory" required>
-                                <option value="">Select Category</option>
-                                <option value="Dairy">Dairy</option>
-                                <option value="Beverages">Beverages</option>
-                                <option value="Confectionery">Confectionery</option>
-                                <option value="Grains">Grains</option>
-                                <option value="Oils">Oils</option>
-                                <option value="Snacks">Snacks</option>
-                                <option value="Produce">Produce</option>
-                                <option value="Meat">Meat</option>
-                            </select>
+                        
+                        <div class="row mb-3">
+                            <div class="col-md-4">
+                                <label for="purchase_price" class="form-label">Purchase Price</label>
+                                <input type="number" class="form-control" id="purchase_price" name="purchase_price" step="0.01" required>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="selling_price" class="form-label">Selling Price</label>
+                                <input type="number" class="form-control" id="selling_price" name="selling_price" step="0.01" required>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="discount_price" class="form-label">Discount Price (Optional)</label>
+                                <input type="number" class="form-control" id="discount_price" name="discount_price" step="0.01">
+                            </div>
                         </div>
-                        <div class="col-md-6">
-                            <label for="productStock" class="form-label">Stock</label>
-                            <input type="text" class="form-control" id="productStock" required>
+                        
+                        <div class="row mb-3">
+                            <div class="col-md-4">
+                                <label for="tax_rate" class="form-label">Tax Rate (%)</label>
+                                <input type="number" class="form-control" id="tax_rate" name="tax_rate" step="0.01" value="10">
+                            </div>
+                            <div class="col-md-4">
+                                <label for="stock_quantity" class="form-label">Stock Quantity</label>
+                                <input type="number" class="form-control" id="stock_quantity" name="stock_quantity" value="0">
+                            </div>
+                            <div class="col-md-4">
+                                <label for="reorder_level" class="form-label">Reorder Level</label>
+                                <input type="number" class="form-control" id="reorder_level" name="reorder_level" value="5">
+                            </div>
                         </div>
-                        <div class="col-md-6">
-                            <label for="productExpiry" class="form-label">Expiry Date</label>
-                            <input type="date" class="form-control" id="productExpiry" required>
+                        
+                        <div class="mb-3">
+                            <label for="description" class="form-label">Description</label>
+                            <textarea class="form-control" id="description" name="description" rows="3"></textarea>
                         </div>
-                        <div class="col-12">
-                            <label for="productDescription" class="form-label">Description</label>
-                            <textarea class="form-control" id="productDescription" rows="3" required></textarea>
+                        
+                        <div class="mb-3">
+                            <label for="product_image" class="form-label">Product Image</label>
+                            <input type="file" class="form-control" id="product_image" name="product_image">
+                        </div>
+                        
+                        <div class="text-end">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="submit" class="btn btn-primary">Add Product</button>
                         </div>
                     </form>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-primary" onclick="saveProduct()">Save Product</button>
                 </div>
             </div>
         </div>
     </div>
     
-    <!-- Bootstrap JS Bundle -->
+    <!-- Bootstrap JS Bundle with Popper -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     
-    <!-- Custom JS -->
     <script>
-        // Edit Product
-        function editProduct(id) {
-            // In a real application, you would fetch the product data from the server
-            alert('Edit product with ID: ' + id);
-            // Then open a modal with the data pre-filled
-        }
-        
-        // Delete Product
-        function deleteProduct(id) {
-            if (confirm('Are you sure you want to delete this product?')) {
-                // In a real application, you would send a delete request to the server
-                alert('Delete product with ID: ' + id);
-            }
-        }
-        
-        // Save New Product
-        function saveProduct() {
-            const sku = document.getElementById('productSKU').value;
-            const name = document.getElementById('productName').value;
-            const brand = document.getElementById('productBrand').value;
-            const category = document.getElementById('productCategory').value;
-            const stock = document.getElementById('productStock').value;
-            const expiry = document.getElementById('productExpiry').value;
-            const description = document.getElementById('productDescription').value;
+        // JavaScript to handle edit and delete modals
+        document.addEventListener('DOMContentLoaded', function() {
+            // Edit product functionality
+            const editButtons = document.querySelectorAll('.btn-edit');
+            editButtons.forEach(button => {
+                button.addEventListener('click', function() {
+                    const productId = this.dataset.productId;
+                    // Here you would typically fetch the product details via AJAX and populate the edit form
+                    console.log(`Edit product with ID: ${productId}`);
+                });
+            });
             
-            if (!sku || !name || !brand || !category || !stock || !expiry || !description) {
-                alert('Please fill all required fields');
-                return;
-            }
-            
-            // In a real application, you would send this data to the server
-            alert('Product added successfully!');
-            document.getElementById('addProductForm').reset();
-            const modal = bootstrap.Modal.getInstance(document.getElementById('addProductModal'));
-            modal.hide();
-        }
-        
-        // Search Products
-        document.getElementById('searchProducts').addEventListener('input', function() {
-            const searchTerm = this.value.toLowerCase();
-            const rows = document.querySelectorAll('#productsTableBody tr');
-            
-            rows.forEach(row => {
-                const productName = row.cells[2].textContent.toLowerCase();
-                const sku = row.cells[1].textContent.toLowerCase();
-                const brand = row.cells[3].textContent.toLowerCase();
-                const category = row.cells[4].textContent.toLowerCase();
-                
-                if (productName.includes(searchTerm) || sku.includes(searchTerm) || 
-                    brand.includes(searchTerm) || category.includes(searchTerm)) {
-                    row.style.display = '';
-                } else {
-                    row.style.display = 'none';
-                }
+            // Delete product functionality
+            const deleteButtons = document.querySelectorAll('.btn-delete');
+            deleteButtons.forEach(button => {
+                button.addEventListener('click', function() {
+                    const productId = this.dataset.productId;
+                    const productName = this.dataset.productName;
+                    
+                    // Here you would populate the delete confirmation modal
+                    console.log(`Delete product with ID: ${productId}, Name: ${productName}`);
+                });
             });
         });
     </script>
 </body>
 </html>
-<?php
-// Close database connection
-if(isset($con)) {
-    $con->close();
-}
-?>

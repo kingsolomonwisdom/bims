@@ -217,7 +217,7 @@ if ($con->query($users_table) !== TRUE) {
 }
 
 // Create User Profiles directory if it doesn't exist
-$profile_dir = "User Profiles";
+$profile_dir = __DIR__ . "/User Profiles";
 if (!file_exists($profile_dir)) {
     mkdir($profile_dir, 0777, true);
 }
