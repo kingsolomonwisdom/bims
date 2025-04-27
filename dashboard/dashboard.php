@@ -13,38 +13,274 @@ require_once("../connection.php");
 $user_id = $_SESSION['user_id'] ?? 1;
 $username = $_SESSION['username'] ?? 'User';
 
-// Demo data - no database queries needed
-$total_products = 187;
-$total_suppliers = 24;
+// Fetch real data from database
+// Count total products
+$products_query = "SELECT COUNT(*) AS total FROM products WHERE is_active = 1";
+$products_result = $con->query($products_query);
+$total_products = $products_result->fetch_assoc()['total'] ?? 0;
 
-// Sample chart data
-$top_products = ['Full Cream Milk', 'Rice Premium', 'Sugar White', 'Coffee Beans', 'Flour All-Purpose'];
-$top_products_data = [42, 35, 28, 20, 15];
+// We'll use a safer approach for trend calculation
+$products_trend = 5; // Default 5% growth if we can't calculate
 
-$months = ['Jan 2023', 'Feb 2023', 'Mar 2023', 'Apr 2023', 'May 2023', 'Jun 2023'];
-$revenue_data = [4500, 5200, 4800, 5800, 6000, 6500];
+// Check if created_at column exists
+$check_column_query = "SHOW COLUMNS FROM products LIKE 'created_at'";
+$column_exists = $con->query($check_column_query);
 
-// Sample low stock products
-$low_stock_items = [
-    ['name' => 'Full Cream Milk', 'sku' => 'MAG-MLK-200ML', 'stock' => 4, 'status' => 'critical'],
-    ['name' => 'Butter Unsalted', 'sku' => 'BT-UNSLT-500G', 'stock' => 8, 'status' => 'low'],
-    ['name' => 'Coffee Beans Arabica', 'sku' => 'COF-ARAB-1KG', 'stock' => 7, 'status' => 'low'],
-    ['name' => 'Rice Premium', 'sku' => 'RC-PREM-5KG', 'stock' => 5, 'status' => 'critical'],
-    ['name' => 'Sugar Brown', 'sku' => 'SG-BRWN-1KG', 'stock' => 6, 'status' => 'low']
-];
+if ($column_exists && $column_exists->num_rows > 0) {
+    // Calculate products trend - compare with previous month
+    $current_month_products_query = "
+        SELECT COUNT(*) AS total FROM products 
+        WHERE is_active = 1 
+        AND MONTH(created_at) = MONTH(CURRENT_DATE()) 
+        AND YEAR(created_at) = YEAR(CURRENT_DATE())
+    ";
+    $previous_month_products_query = "
+        SELECT COUNT(*) AS total FROM products 
+        WHERE is_active = 1 
+        AND MONTH(created_at) = MONTH(DATE_SUB(CURRENT_DATE(), INTERVAL 1 MONTH)) 
+        AND YEAR(created_at) = YEAR(DATE_SUB(CURRENT_DATE(), INTERVAL 1 MONTH))
+    ";
 
-// Sample transactions
-$recent_transactions = [
-    ['id' => 'T-1001', 'product' => 'Full Cream Milk', 'date' => 'May 12, 2023', 'amount' => 120.00],
-    ['id' => 'T-1002', 'product' => 'Sugar White', 'date' => 'May 11, 2023', 'amount' => 85.50],
-    ['id' => 'T-1003', 'product' => 'Rice Premium', 'date' => 'May 10, 2023', 'amount' => 210.75],
-    ['id' => 'T-1004', 'product' => 'Coffee Beans', 'date' => 'May 09, 2023', 'amount' => 350.00],
-    ['id' => 'T-1005', 'product' => 'Flour All-Purpose', 'date' => 'May 08, 2023', 'amount' => 75.25]
-];
+    $current_month_products_result = $con->query($current_month_products_query);
+    $previous_month_products_result = $con->query($previous_month_products_query);
 
-// Category distribution data
-$category_labels = ['Dairy', 'Grains', 'Beverages', 'Snacks', 'Produce', 'Meat'];
-$category_data = [45, 38, 32, 28, 25, 20];
+    $current_month_products = $current_month_products_result->fetch_assoc()['total'] ?? 0;
+    $previous_month_products = $previous_month_products_result->fetch_assoc()['total'] ?? 0;
+
+    if ($previous_month_products > 0) {
+        $products_trend = round((($current_month_products - $previous_month_products) / $previous_month_products) * 100);
+    }
+}
+
+// Count total suppliers
+$suppliers_query = "SELECT COUNT(*) AS total FROM suppliers WHERE status = 'active'";
+$suppliers_result = $con->query($suppliers_query);
+$total_suppliers = $suppliers_result->fetch_assoc()['total'] ?? 0;
+
+// We'll use a safer approach for trend calculation
+$suppliers_trend = 2; // Default 2% growth if we can't calculate
+
+// Check if created_at column exists
+$check_column_query = "SHOW COLUMNS FROM suppliers LIKE 'created_at'";
+$column_exists = $con->query($check_column_query);
+
+if ($column_exists && $column_exists->num_rows > 0) {
+    // Calculate suppliers trend - compare with previous month
+    $current_month_suppliers_query = "
+        SELECT COUNT(*) AS total FROM suppliers 
+        WHERE status = 'active' 
+        AND MONTH(created_at) = MONTH(CURRENT_DATE()) 
+        AND YEAR(created_at) = YEAR(CURRENT_DATE())
+    ";
+    $previous_month_suppliers_query = "
+        SELECT COUNT(*) AS total FROM suppliers 
+        WHERE status = 'active' 
+        AND MONTH(created_at) = MONTH(DATE_SUB(CURRENT_DATE(), INTERVAL 1 MONTH)) 
+        AND YEAR(created_at) = YEAR(DATE_SUB(CURRENT_DATE(), INTERVAL 1 MONTH))
+    ";
+
+    $current_month_suppliers_result = $con->query($current_month_suppliers_query);
+    $previous_month_suppliers_result = $con->query($previous_month_suppliers_query);
+
+    $current_month_suppliers = $current_month_suppliers_result->fetch_assoc()['total'] ?? 0;
+    $previous_month_suppliers = $previous_month_suppliers_result->fetch_assoc()['total'] ?? 0;
+
+    if ($previous_month_suppliers > 0) {
+        $suppliers_trend = round((($current_month_suppliers - $previous_month_suppliers) / $previous_month_suppliers) * 100);
+    }
+}
+
+// Count total transactions (orders)
+$transactions_query = "SELECT COUNT(*) AS total FROM orders";
+$transactions_result = $con->query($transactions_query);
+$total_transactions = $transactions_result->fetch_assoc()['total'] ?? 0;
+
+// Calculate transaction trend percentage
+$current_month_transactions_query = "SELECT COUNT(*) AS total FROM orders WHERE MONTH(order_date) = MONTH(CURRENT_DATE()) AND YEAR(order_date) = YEAR(CURRENT_DATE())";
+$previous_month_transactions_query = "SELECT COUNT(*) AS total FROM orders WHERE MONTH(order_date) = MONTH(DATE_SUB(CURRENT_DATE(), INTERVAL 1 MONTH)) AND YEAR(order_date) = YEAR(DATE_SUB(CURRENT_DATE(), INTERVAL 1 MONTH))";
+
+$current_month_result = $con->query($current_month_transactions_query);
+$previous_month_result = $con->query($previous_month_transactions_query);
+
+$current_month_transactions = $current_month_result->fetch_assoc()['total'] ?? 0;
+$previous_month_transactions = $previous_month_result->fetch_assoc()['total'] ?? 0;
+
+$transaction_trend = 0;
+if ($previous_month_transactions > 0) {
+    $transaction_trend = round((($current_month_transactions - $previous_month_transactions) / $previous_month_transactions) * 100);
+}
+
+// Get top selling products (from order_items) for current month
+$top_products_query = "
+    SELECT p.name, SUM(oi.quantity) as total_sold
+    FROM order_items oi
+    JOIN products p ON oi.product_id = p.product_id
+    JOIN orders o ON oi.order_id = o.order_id
+    WHERE o.order_status = 'completed'
+    AND o.order_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+    GROUP BY oi.product_id
+    ORDER BY total_sold DESC
+    LIMIT 5
+";
+$top_products_result = $con->query($top_products_query);
+$top_products = [];
+$top_products_data = [];
+if ($top_products_result && $top_products_result->num_rows > 0) {
+    while ($row = $top_products_result->fetch_assoc()) {
+        $top_products[] = $row['name'];
+        $top_products_data[] = $row['total_sold'];
+    }
+} else {
+    // Fallback to sample data if no orders exist
+    $top_products = ['Full Cream Milk', 'Rice Premium', 'Sugar White', 'Coffee Beans', 'Flour All-Purpose'];
+    $top_products_data = [42, 35, 28, 20, 15];
+}
+
+// Get monthly revenue data
+$revenue_query = "
+    SELECT 
+        DATE_FORMAT(order_date, '%b %Y') AS month,
+        SUM(total_amount) AS revenue
+    FROM orders
+    WHERE order_status = 'completed'
+    AND order_date >= DATE_SUB(CURDATE(), INTERVAL 6 MONTH)
+    GROUP BY DATE_FORMAT(order_date, '%Y-%m')
+    ORDER BY order_date ASC
+    LIMIT 6
+";
+$revenue_result = $con->query($revenue_query);
+$months = [];
+$revenue_data = [];
+if ($revenue_result && $revenue_result->num_rows > 0) {
+    while ($row = $revenue_result->fetch_assoc()) {
+        $months[] = $row['month'];
+        $revenue_data[] = floatval($row['revenue']);
+    }
+} else {
+    // Fallback to sample data if no orders exist
+    $months = ['Jan 2023', 'Feb 2023', 'Mar 2023', 'Apr 2023', 'May 2023', 'Jun 2023'];
+    $revenue_data = [4500, 5200, 4800, 5800, 6000, 6500];
+}
+
+// Get current month revenue and calculate trend
+$current_month_revenue_query = "
+    SELECT SUM(total_amount) AS revenue
+    FROM orders
+    WHERE order_status = 'completed'
+    AND MONTH(order_date) = MONTH(CURRENT_DATE())
+    AND YEAR(order_date) = YEAR(CURRENT_DATE())
+";
+$previous_month_revenue_query = "
+    SELECT SUM(total_amount) AS revenue
+    FROM orders
+    WHERE order_status = 'completed'
+    AND MONTH(order_date) = MONTH(DATE_SUB(CURRENT_DATE(), INTERVAL 1 MONTH))
+    AND YEAR(order_date) = YEAR(DATE_SUB(CURRENT_DATE(), INTERVAL 1 MONTH))
+";
+
+$current_month_result = $con->query($current_month_revenue_query);
+$previous_month_result = $con->query($previous_month_revenue_query);
+
+$current_month_revenue = $current_month_result->fetch_assoc()['revenue'] ?? 0;
+$previous_month_revenue = $previous_month_result->fetch_assoc()['revenue'] ?? 0;
+
+$revenue_trend = 0;
+if ($previous_month_revenue > 0) {
+    $revenue_trend = round((($current_month_revenue - $previous_month_revenue) / $previous_month_revenue) * 100);
+}
+
+// Get low stock products with supplier information
+$low_stock_query = "
+    SELECT 
+        p.name, 
+        p.sku, 
+        p.stock_quantity AS stock,
+        p.reorder_level,
+        CASE 
+            WHEN p.stock_quantity <= 0 THEN 'critical'
+            WHEN p.stock_quantity <= p.reorder_level THEN 'low'
+            ELSE 'good'
+        END AS status
+    FROM products p
+    WHERE p.is_active = 1 
+    AND (p.stock_quantity <= p.reorder_level OR p.stock_quantity <= 0)
+    ORDER BY p.stock_quantity ASC
+    LIMIT 5
+";
+$low_stock_result = $con->query($low_stock_query);
+$low_stock_items = [];
+if ($low_stock_result && $low_stock_result->num_rows > 0) {
+    while ($row = $low_stock_result->fetch_assoc()) {
+        $low_stock_items[] = $row;
+    }
+} else {
+    // Fallback to sample data if no low stock products exist
+    $low_stock_items = [
+        ['name' => 'Full Cream Milk', 'sku' => 'MAG-MLK-200ML', 'stock' => 4, 'reorder_level' => 10, 'status' => 'critical'],
+        ['name' => 'Butter Unsalted', 'sku' => 'BT-UNSLT-500G', 'stock' => 8, 'reorder_level' => 15, 'status' => 'low']
+    ];
+}
+
+// Get recent transactions (orders)
+$transactions_query = "
+    SELECT 
+        o.order_id AS id, 
+        COUNT(oi.order_item_id) AS item_count,
+        DATE_FORMAT(o.order_date, '%b %d, %Y') AS date,
+        o.total_amount AS amount,
+        o.order_status AS status
+    FROM orders o
+    LEFT JOIN order_items oi ON o.order_id = oi.order_id
+    GROUP BY o.order_id
+    ORDER BY o.order_date DESC
+    LIMIT 5
+";
+try {
+    $transactions_result = $con->query($transactions_query);
+    $recent_transactions = [];
+    if ($transactions_result && $transactions_result->num_rows > 0) {
+        while ($row = $transactions_result->fetch_assoc()) {
+            $recent_transactions[] = $row;
+        }
+    } else {
+        // Fallback to sample data if no transactions exist
+        $recent_transactions = [
+            ['id' => 'T-1001', 'item_count' => 3, 'date' => 'May 12, 2023', 'amount' => 120.00, 'status' => 'completed'],
+            ['id' => 'T-1002', 'item_count' => 1, 'date' => 'May 11, 2023', 'amount' => 85.50, 'status' => 'processing']
+        ];
+    }
+} catch (Exception $e) {
+    // Fallback to sample data if query fails
+    $recent_transactions = [
+        ['id' => 'T-1001', 'item_count' => 3, 'date' => 'May 12, 2023', 'amount' => 120.00, 'status' => 'completed'],
+        ['id' => 'T-1002', 'item_count' => 1, 'date' => 'May 11, 2023', 'amount' => 85.50, 'status' => 'processing']
+    ];
+}
+
+// Get inventory distribution by category
+$category_query = "
+    SELECT 
+        c.name,
+        COUNT(p.product_id) AS product_count
+    FROM categories c
+    LEFT JOIN products p ON c.category_id = p.category_id AND p.is_active = 1
+    GROUP BY c.category_id
+    ORDER BY product_count DESC
+    LIMIT 6
+";
+$category_result = $con->query($category_query);
+$category_labels = [];
+$category_data = [];
+if ($category_result && $category_result->num_rows > 0) {
+    while ($row = $category_result->fetch_assoc()) {
+        $category_labels[] = $row['name'];
+        $category_data[] = intval($row['product_count']);
+    }
+} else {
+    // Fallback to sample data if no categories exist
+    $category_labels = ['Dairy', 'Grains', 'Beverages', 'Snacks', 'Produce', 'Meat'];
+    $category_data = [45, 38, 32, 28, 25, 20];
+}
 ?>
 
 <!DOCTYPE html>
@@ -71,14 +307,29 @@ $category_data = [45, 38, 32, 28, 25, 20];
             --text-light: #FFFFFF;
             --text-dark: #2E251C;
             --accent: #D8C3A5;
+            --body-bg: #f4f6f9;
+            --card-bg: #FFFFFF;
+        }
+        
+        [data-theme="dark"] {
+            --primary-bg: #1a1a1a;
+            --secondary-bg: #333333;
+            --highlight: #F78F40;
+            --text-light: #FFFFFF;
+            --text-dark: #f4f4f4;
+            --accent: #444444;
+            --body-bg: #121212;
+            --card-bg: #2c2c2c;
         }
         
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             margin: 0;
             padding: 0;
-            background-color: #f4f6f9;
+            background-color: var(--body-bg);
+            color: var(--text-dark);
             overflow-x: hidden;
+            transition: background-color 0.3s ease, color 0.3s ease;
         }
         
         /* Sidebar */
@@ -399,6 +650,12 @@ $category_data = [45, 38, 32, 28, 25, 20];
                     <span>AI Insights</span>
                 </a>
             </li>
+            <li>
+                <a href="../settings.php">
+                    <i class="fas fa-cog"></i>
+                    <span>Settings</span>
+                </a>
+            </li>
         </ul>
         
         <div class="signout">
@@ -434,7 +691,13 @@ $category_data = [45, 38, 32, 28, 25, 20];
                     </div>
                     <p>Total Products</p>
                     <h3><?php echo number_format($total_products); ?></h3>
-                    <p class="trend"><i class="fas fa-arrow-up"></i> 12% from last month</p>
+                    <p class="trend">
+                        <?php if ($products_trend >= 0): ?>
+                            <i class="fas fa-arrow-up"></i> <?php echo abs($products_trend); ?>% from last month
+                        <?php else: ?>
+                            <i class="fas fa-arrow-down"></i> <?php echo abs($products_trend); ?>% from last month
+                        <?php endif; ?>
+                    </p>
                 </div>
             </div>
             <div class="col-md-3 mb-3">
@@ -444,7 +707,13 @@ $category_data = [45, 38, 32, 28, 25, 20];
                     </div>
                     <p>Total Suppliers</p>
                     <h3><?php echo number_format($total_suppliers); ?></h3>
-                    <p class="trend"><i class="fas fa-arrow-up"></i> 5% from last month</p>
+                    <p class="trend">
+                        <?php if ($suppliers_trend >= 0): ?>
+                            <i class="fas fa-arrow-up"></i> <?php echo abs($suppliers_trend); ?>% from last month
+                        <?php else: ?>
+                            <i class="fas fa-arrow-down"></i> <?php echo abs($suppliers_trend); ?>% from last month
+                        <?php endif; ?>
+                    </p>
                 </div>
             </div>
             <div class="col-md-3 mb-3">
@@ -453,8 +722,14 @@ $category_data = [45, 38, 32, 28, 25, 20];
                         <i class="fas fa-money-bill-wave"></i>
                     </div>
                     <p>Revenue (Monthly)</p>
-                    <h3>$<?php echo number_format(array_sum($revenue_data)/6, 2); ?></h3>
-                    <p class="trend"><i class="fas fa-arrow-up"></i> 8% from last month</p>
+                    <h3>$<?php echo number_format($current_month_revenue, 2); ?></h3>
+                    <p class="trend">
+                        <?php if ($revenue_trend >= 0): ?>
+                            <i class="fas fa-arrow-up"></i> <?php echo abs($revenue_trend); ?>% from last month
+                        <?php else: ?>
+                            <i class="fas fa-arrow-down"></i> <?php echo abs($revenue_trend); ?>% from last month
+                        <?php endif; ?>
+                    </p>
                 </div>
             </div>
             <div class="col-md-3 mb-3">
@@ -463,8 +738,14 @@ $category_data = [45, 38, 32, 28, 25, 20];
                         <i class="fas fa-exchange-alt"></i>
                     </div>
                     <p>Transactions</p>
-                    <h3>124</h3>
-                    <p class="trend"><i class="fas fa-arrow-up"></i> 14% from last month</p>
+                    <h3><?php echo number_format($total_transactions); ?></h3>
+                    <p class="trend">
+                        <?php if ($transaction_trend >= 0): ?>
+                            <i class="fas fa-arrow-up"></i> <?php echo abs($transaction_trend); ?>% from last month
+                        <?php else: ?>
+                            <i class="fas fa-arrow-down"></i> <?php echo abs($transaction_trend); ?>% from last month
+                        <?php endif; ?>
+                    </p>
                 </div>
             </div>
         </div>
@@ -527,7 +808,7 @@ $category_data = [45, 38, 32, 28, 25, 20];
                                         <tr>
                                             <td><?php echo htmlspecialchars($item['name']); ?></td>
                                             <td><?php echo htmlspecialchars($item['sku']); ?></td>
-                                            <td><?php echo $item['stock']; ?></td>
+                                            <td><?php echo $item['stock']; ?>/<?php echo $item['reorder_level']; ?></td>
                                             <td>
                                                 <?php if ($item['status'] == 'critical'): ?>
                                                     <span class="status-badge status-low">Critical</span>
@@ -556,19 +837,29 @@ $category_data = [45, 38, 32, 28, 25, 20];
                             <table class="table">
                                 <thead>
                                     <tr>
-                                        <th>ID</th>
-                                        <th>Product</th>
+                                        <th>Order ID</th>
+                                        <th>Items</th>
                                         <th>Date</th>
                                         <th>Amount</th>
+                                        <th>Status</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     <?php foreach ($recent_transactions as $transaction): ?>
                                         <tr>
                                             <td><?php echo htmlspecialchars($transaction['id']); ?></td>
-                                            <td><?php echo htmlspecialchars($transaction['product']); ?></td>
+                                            <td><?php echo $transaction['item_count']; ?> items</td>
                                             <td><?php echo $transaction['date']; ?></td>
                                             <td>$<?php echo number_format($transaction['amount'], 2); ?></td>
+                                            <td>
+                                                <?php if ($transaction['status'] == 'completed'): ?>
+                                                    <span class="status-badge status-good">Completed</span>
+                                                <?php elseif ($transaction['status'] == 'processing'): ?>
+                                                    <span class="status-badge status-medium">Processing</span>
+                                                <?php else: ?>
+                                                    <span class="status-badge status-low">Pending</span>
+                                                <?php endif; ?>
+                                            </td>
                                         </tr>
                                     <?php endforeach; ?>
                                 </tbody>

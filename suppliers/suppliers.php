@@ -196,14 +196,29 @@ unset($_SESSION['success_message'], $_SESSION['error_message']);
             --text-light: #FFFFFF;
             --text-dark: #2E251C;
             --accent: #D8C3A5;
+            --body-bg: #FFF8F1;
+            --card-bg: #FFFFFF;
+        }
+        
+        [data-theme="dark"] {
+            --primary-bg: #1a1a1a;
+            --secondary-bg: #333333;
+            --highlight: #F78F40;
+            --text-light: #FFFFFF;
+            --text-dark: #f4f4f4;
+            --accent: #444444;
+            --body-bg: #121212;
+            --card-bg: #2c2c2c;
         }
         
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             margin: 0;
             padding: 0;
-            background-color: #FFF8F1;
+            background-color: var(--body-bg);
+            color: var(--text-dark);
             overflow-x: hidden;
+            transition: background-color 0.3s ease, color 0.3s ease;
         }
         
         /* Sidebar */
@@ -502,6 +517,12 @@ unset($_SESSION['success_message'], $_SESSION['error_message']);
                     <span>AI Insights</span>
                 </a>
             </li>
+            <li>
+                <a href="../settings.php">
+                    <i class="fas fa-cog"></i>
+                    <span>Settings</span>
+                </a>
+            </li>
         </ul>
         
         <div class="signout">
@@ -570,13 +591,13 @@ unset($_SESSION['success_message'], $_SESSION['error_message']);
                     </thead>
                     <tbody>
                         <?php foreach ($suppliers as $supplier): ?>
-                            <tr>
-                                <td><?php echo htmlspecialchars($supplier['company_name']); ?></td>
+                        <tr>
+                            <td><?php echo htmlspecialchars($supplier['company_name']); ?></td>
                                 <td><?php echo htmlspecialchars($supplier['contact_person'] ?? 'N/A'); ?></td>
-                                <td><?php echo htmlspecialchars($supplier['phone']); ?></td>
-                                <td><?php echo htmlspecialchars($supplier['email']); ?></td>
-                                <td><?php echo htmlspecialchars($supplier['address']); ?></td>
-                                <td>
+                            <td><?php echo htmlspecialchars($supplier['phone']); ?></td>
+                            <td><?php echo htmlspecialchars($supplier['email']); ?></td>
+                            <td><?php echo htmlspecialchars($supplier['address']); ?></td>
+                            <td>
                                     <span class="badge <?php echo $supplier['status'] === 'active' ? 'bg-success' : 'bg-secondary'; ?>">
                                         <?php echo ucfirst($supplier['status'] ?? 'active'); ?>
                                     </span>
@@ -593,8 +614,8 @@ unset($_SESSION['success_message'], $_SESSION['error_message']);
                                             <i class="fas fa-trash"></i>
                                         </button>
                                     </div>
-                                </td>
-                            </tr>
+                            </td>
+                        </tr>
                         <?php endforeach; ?>
                         <?php if (empty($suppliers)): ?>
                             <tr>
@@ -764,7 +785,7 @@ unset($_SESSION['success_message'], $_SESSION['error_message']);
                         <input type="hidden" name="supplier_id" id="delete_supplier_id">
                         
                         <div class="text-end">
-                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                             <button type="submit" class="btn btn-danger">Deactivate Supplier</button>
                         </div>
                     </form>

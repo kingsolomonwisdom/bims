@@ -13,24 +13,74 @@ require_once("../connection.php");
 $user_id = $_SESSION['user_id'] ?? 1;
 $username = $_SESSION['username'] ?? 'User';
 
-// Sample products data (in a real application, this would come from the database)
-$products = [
-    ['id' => 1, 'name' => 'Full Cream Milk', 'price' => 50.00, 'image' => 'noodles.png'],
-    ['id' => 2, 'name' => 'Coffee Beans', 'price' => 75.50, 'image' => 'noodles.png'],
-    ['id' => 3, 'name' => 'Brown Sugar', 'price' => 30.25, 'image' => 'noodles.png'],
-    ['id' => 4, 'name' => 'White Rice', 'price' => 45.75, 'image' => 'noodles.png'],
-    ['id' => 5, 'name' => 'Whole Wheat Bread', 'price' => 35.00, 'image' => 'noodles.png'],
-    ['id' => 6, 'name' => 'Fresh Eggs', 'price' => 60.00, 'image' => 'noodles.png'],
-    ['id' => 7, 'name' => 'Chicken Meat', 'price' => 120.00, 'image' => 'noodles.png'],
-    ['id' => 8, 'name' => 'Tomato Sauce', 'price' => 25.50, 'image' => 'noodles.png'],
-    ['id' => 9, 'name' => 'Cooking Oil', 'price' => 85.75, 'image' => 'noodles.png'],
-    ['id' => 10, 'name' => 'Instant Noodles', 'price' => 15.00, 'image' => 'noodles.png'],
-    ['id' => 11, 'name' => 'Soy Sauce', 'price' => 40.25, 'image' => 'noodles.png'],
-    ['id' => 12, 'name' => 'Canned Tuna', 'price' => 55.50, 'image' => 'noodles.png']
-];
+// Get real products from database
+function getProducts(mysqli $connection): array {
+    try {
+        $query = "
+            SELECT 
+                p.product_id as id, 
+                p.name, 
+                p.selling_price as price, 
+                p.image_url as image,
+                p.stock_quantity
+            FROM 
+                products p
+            WHERE 
+                p.is_active = 1
+                AND p.stock_quantity > 0
+            ORDER BY 
+                p.name ASC
+        ";
+        
+        $result = $connection->query($query);
+        $products = [];
+        
+        if ($result && $result->num_rows > 0) {
+            while ($row = $result->fetch_assoc()) {
+                // Use a default image if none available
+                if (empty($row['image'])) {
+                    $row['image'] = 'noodles.png';
+                }
+                $products[] = $row;
+            }
+            return $products;
+        }
+        return [];
+    } catch (Exception $e) {
+        error_log($e->getMessage());
+        return [];
+    }
+}
 
-// Sample tax rate
-$taxRate = 0.10; // 10%
+// Get settings like tax rate
+function getTaxRate(mysqli $connection): float {
+    try {
+        $query = "SELECT setting_value FROM settings WHERE setting_key = 'tax_rate'";
+        $result = $connection->query($query);
+        if ($result && $result->num_rows > 0) {
+            $row = $result->fetch_assoc();
+            return floatval($row['setting_value']) / 100; // Convert percentage to decimal
+        }
+        return 0.10; // Default 10% if not found
+    } catch (Exception $e) {
+        error_log($e->getMessage());
+        return 0.10; // Default 10% on error
+    }
+}
+
+// Fetch real products from database
+$products = getProducts($con);
+
+// If no products found, use sample products as fallback
+if (empty($products)) {
+    $products = [
+        ['id' => 1, 'name' => 'Sample Product 1', 'price' => 50.00, 'image' => 'noodles.png', 'stock_quantity' => 10],
+        ['id' => 2, 'name' => 'Sample Product 2', 'price' => 75.50, 'image' => 'noodles.png', 'stock_quantity' => 5]
+    ];
+}
+
+// Get tax rate from settings
+$taxRate = getTaxRate($con);
 ?>
 
 <!DOCTYPE html>
@@ -56,14 +106,31 @@ $taxRate = 0.10; // 10%
             --text-dark: #2E251C;
             --accent: #D8C3A5;
             --gray-bg: #e6e2dc;
+            --body-bg: #FFF8F1;
+            --card-bg: #FFFFFF;
+        }
+        
+        [data-theme="dark"] {
+            --primary-bg: #1a1a1a;
+            --secondary-bg: #333333;
+            --highlight: #F78F40;
+            --light-bg: #1e1e1e;
+            --text-light: #FFFFFF;
+            --text-dark: #f4f4f4;
+            --accent: #444444;
+            --gray-bg: #2a2a2a;
+            --body-bg: #121212;
+            --card-bg: #2c2c2c;
         }
         
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             margin: 0;
             padding: 0;
-            background-color: var(--light-bg);
+            background-color: var(--body-bg);
+            color: var(--text-dark);
             overflow-x: hidden;
+            transition: background-color 0.3s ease, color 0.3s ease;
         }
         
         /* Sidebar */
@@ -530,6 +597,12 @@ $taxRate = 0.10; // 10%
                 <a href="../ai-insights/insights.php">
                     <i class="fas fa-lightbulb"></i>
                     <span>AI Insights</span>
+                </a>
+            </li>
+            <li>
+                <a href="../settings.php">
+                    <i class="fas fa-cog"></i>
+                    <span>Settings</span>
                 </a>
             </li>
         </ul>

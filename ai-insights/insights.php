@@ -547,18 +547,32 @@ $generated = isset($_GET['generated']) && $_GET['generated'] === 'true';
             --primary-bg: #2E251C;
             --secondary-bg: #F5E7D1;
             --highlight: #F78F40;
-            --light-bg: #FFF8F1;
             --text-light: #FFFFFF;
             --text-dark: #2E251C;
             --accent: #D8C3A5;
+            --body-bg: #f4f6f9;
+            --card-bg: #FFFFFF;
+        }
+        
+        [data-theme="dark"] {
+            --primary-bg: #1a1a1a;
+            --secondary-bg: #333333;
+            --highlight: #F78F40;
+            --text-light: #FFFFFF;
+            --text-dark: #f4f4f4;
+            --accent: #444444;
+            --body-bg: #121212;
+            --card-bg: #2c2c2c;
         }
         
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             margin: 0;
             padding: 0;
-            background-color: #FFF8F1;
+            background-color: var(--body-bg);
+            color: var(--text-dark);
             overflow-x: hidden;
+            transition: background-color 0.3s ease, color 0.3s ease;
         }
         
         /* Sidebar */
@@ -888,6 +902,12 @@ $generated = isset($_GET['generated']) && $_GET['generated'] === 'true';
                     <?php if ($unreadCount > 0): ?>
                         <span class="badge bg-danger ms-auto"><?php echo $unreadCount; ?></span>
                     <?php endif; ?>
+                </a>
+            </li>
+            <li>
+                <a href="../settings.php">
+                    <i class="fas fa-cog"></i>
+                    <span>Settings</span>
                 </a>
             </li>
         </ul>
